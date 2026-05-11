@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Crab Trap MUD — Fleet Explorer</title>
+<style>
+  :root {
+    --bg: #0b0e14;
+    --panel: #131a22;
+    --border: #1e2a36;
+    --text: #c8d6e0;
+    --text-dim: #6a7f94;
+    --accent: #2d8bca;
+    --accent-glow: #2d8bca44;
+    --success: #3da86a;
+    --warning: #d4a53a;
+    --error: #c44a4a;
+    --input-bg: #0f151d;
+    --hover: #1a2533;
+    --radius: 8px;
+    --font: 'Courier New', 'SF Mono', 'Fira Code', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 14px;
+    line-height: 1.5;
+    overflow: hidden;
+  }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  #app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    max-width: 100vw;
+  }
+
+  /* ─── Header ─── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 16px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    gap: 8px;
+  }
+  header h1 {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    white-space: nowrap;
+  }
+  header h1 span { color: var(--text-dim); }
+  .header-status {
+    font-size: 11px;
+    color: var(--text-dim);
+    white-space: nowrap;
+  }
+  .header-status .dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    margin-right: 4px;
+    vertical-align: middle;
+  }
+  .dot.online { background: var(--success); box-shadow: 0 0 6px var(--success); }
+  .dot.offline { background: var(--error); }
+
+  /* ─── Connect Panel ─── */
+  #connect-panel {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  #connect-panel label {
+    font-size: 11px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  #connect-panel input, #connect-panel select {
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    padding: 6px 10px;
+    font-family: var(--font);
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  #connect-panel input:focus, #connect-panel select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 8px var(--accent-glow);
+  }
+  #connect-panel input { flex: 1; min-width: 120px; }
+  #connect-panel .btn {
+    background: var(--accent);
+    border: none;
+    border-radius: var(--radius);
+    color: #fff;
+    padding: 6px 18px;
+    font-family: var(--font);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  #connect-panel .btn:hover { filter: brightness(1.2); }
+  #connect-panel .btn:active { transform: scale(0.96); }
+  #connect-panel .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* ─── Main Grid ─── */
+  #main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    gap: 1px;
+    background: var(--border);
+  }
+  #main > * {
+    background: var(--bg);
+    overflow-y: auto;
+  }
+
+  /* Left Column: Room View */
+  #room-col {
+    flex: 2;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  #room-view {
+    padding: 16px;
+    flex: 1;
+    overflow-y: auto;
+  }
+  .room-name {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--accent);
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .room-tags {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+  }
+  .room-desc {
+    color: var(--text);
+    font-size: 13px;
+    line-height: 1.7;
+    margin-bottom: 16px;
+    padding: 12px;
+    background: var(--panel);
+    border-radius: var(--radius);
+    border-left: 3px solid var(--accent);
+  }
+  .room-section {
+    margin-bottom: 12px;
+  }
+  .room-section h3 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+  }
+  .exit-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .exit-btn {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--accent);
+    padding: 4px 12px;
+    font-family: var(--font);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .exit-btn:hover {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    box-shadow: 0 0 12px var(--accent-glow);
+  }
+  .object-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .object-btn {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--warning);
+    padding: 4px 12px;
+    font-family: var(--font);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .object-btn:hover {
+    background: var(--warning);
+    border-color: var(--warning);
+    color: #000;
+  }
+  .room-task {
+    font-size: 12px;
+    color: var(--text-dim);
+    font-style: italic;
+    padding: 8px 12px;
+    background: var(--panel);
+    border-radius: var(--radius);
+    border: 1px dashed var(--border);
+  }
+
+  /* ─── Right Column ─── */
+  #right-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 280px;
+    max-width: 400px;
+  }
+
+  /* ─── Map ─── */
+  #map-panel {
+    padding: 12px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    max-height: 180px;
+    overflow-y: auto;
+  }
+  #map-panel h3 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+  }
+  #room-map {
+    font-size: 11px;
+    line-height: 1.4;
+    white-space: pre;
+    color: var(--text-dim);
+    font-family: var(--font);
+    min-height: 40px;
+  }
+
+  /* ─── Object Inspector ─── */
+  #inspector-panel {
+    padding: 12px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+  #inspector-panel h3 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+  }
+  #inspector-content {
+    font-size: 13px;
+    color: var(--text);
+    line-height: 1.6;
+  }
+  #inspector-content.empty {
+    color: var(--text-dim);
+    font-style: italic;
+  }
+
+  /* ─── Tile Composer ─── */
+  #tile-panel {
+    padding: 12px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  #tile-panel h3 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+  }
+  #tile-form {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  #tile-form input, #tile-form textarea, #tile-form select {
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    padding: 6px 10px;
+    font-family: var(--font);
+    font-size: 12px;
+    outline: none;
+    width: 100%;
+  }
+  #tile-form textarea {
+    resize: vertical;
+    min-height: 48px;
+  }
+  #tile-form .tile-row {
+    display: flex;
+    gap: 6px;
+  }
+  #tile-form .tile-row > * { flex: 1; }
+  .tile-btn {
+    background: var(--success);
+    border: none;
+    border-radius: var(--radius);
+    color: #fff;
+    padding: 6px 14px;
+    font-family: var(--font);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .tile-btn:hover { filter: brightness(1.2); }
+  .tile-btn:active { transform: scale(0.96); }
+  .tile-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* ─── History ─── */
+  #history-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  #history-panel h3 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    padding: 8px 12px 4px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  #history-log {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 12px;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .log-entry {
+    padding: 4px 0;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    gap: 8px;
+  }
+  .log-entry:last-child { border-bottom: none; }
+  .log-time {
+    color: var(--text-dim);
+    font-size: 10px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    min-width: 50px;
+  }
+  .log-msg {
+    color: var(--text);
+    word-break: break-word;
+  }
+  .log-msg.info { color: var(--accent); }
+  .log-msg.success { color: var(--success); }
+  .log-msg.warn { color: var(--warning); }
+  .log-msg.error { color: var(--error); }
+  .log-msg.system { color: var(--text-dim); font-style: italic; }
+
+  /* ─── Regenerate Button ─── */
+  #regenerate {
+    display: block;
+    width: 100%;
+    padding: 14px;
+    background: linear-gradient(135deg, #c44a4a 0%, #a83232 100%);
+    border: none;
+    border-radius: 0;
+    color: #fff;
+    font-family: var(--font);
+    font-size: 16px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    cursor: pointer;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+  #regenerate:hover {
+    filter: brightness(1.2);
+    box-shadow: inset 0 0 30px rgba(255,255,255,0.1);
+  }
+  #regenerate:active {
+    transform: scale(0.98);
+  }
+
+  /* ─── Toast ─── */
+  #toast {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    padding: 10px 20px;
+    border-radius: var(--radius);
+    font-size: 13px;
+    font-family: var(--font);
+    z-index: 999;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all 0.3s;
+    max-width: 320px;
+    pointer-events: none;
+  }
+  #toast.show {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  #toast.success { background: var(--success); color: #fff; }
+  #toast.error { background: var(--error); color: #fff; }
+  #toast.info { background: var(--accent); color: #fff; }
+
+  /* ─── Responsive ─── */
+  @media (max-width: 720px) {
+    #main { flex-direction: column; }
+    #right-col { max-width: none; min-width: 0; }
+    #room-col { max-height: 50vh; }
+    header { flex-wrap: wrap; }
+    header h1 { font-size: 12px; }
+    #connect-panel { padding: 6px 10px; }
+    #connect-panel input { min-width: 80px; font-size: 12px; }
+    .room-name { font-size: 15px; }
+    #regenerate { font-size: 14px; padding: 12px; }
+  }
+
+  @media (max-width: 420px) {
+    #connect-panel label { display: none; }
+    #connect-panel .btn { padding: 6px 12px; font-size: 12px; }
+    #map-panel { max-height: 120px; }
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+  .loading { animation: pulse 1s infinite; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>🦀 CRAB TRAP <span>MUD</span></h1>
+    <div class="header-status">
+      <span class="dot online" id="status-dot"></span>
+      <span id="status-text">Fleet Status</span>
+    </div>
+  </header>
+
+  <div id="connect-panel">
+    <label for="agent-name">Agent</label>
+    <input type="text" id="agent-name" placeholder="enter agent name" value="recruit-1" autocomplete="off">
+    <label for="job-select">Job</label>
+    <select id="job-select">
+      <option value="scout">Scout</option>
+      <option value="scholar">Scholar</option>
+      <option value="builder" selected>Builder</option>
+      <option value="critic">Critic</option>
+      <option value="bard">Bard</option>
+      <option value="healer">Healer</option>
+    </select>
+    <button class="btn" id="connect-btn">⚓ Connect</button>
+  </div>
+
+  <div id="main">
+    <!-- Left: Room View -->
+    <div id="room-col">
+      <div id="room-view">
+        <div class="room-name" id="room-name">—</div>
+        <div class="room-tags" id="room-tags"></div>
+        <div class="room-desc" id="room-desc">Connect an agent to explore the fleet.</div>
+        <div class="room-section" id="exits-section">
+          <h3>Exits</h3>
+          <div class="exit-grid" id="exit-grid">
+            <span style="color:var(--text-dim);font-size:12px;">—</span>
+          </div>
+        </div>
+        <div class="room-section" id="objects-section">
+          <h3>Objects</h3>
+          <div class="object-grid" id="object-grid">
+            <span style="color:var(--text-dim);font-size:12px;">—</span>
+          </div>
+        </div>
+        <div class="room-section" id="task-section" style="display:none;">
+          <h3>Task</h3>
+          <div class="room-task" id="room-task"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Map, Inspector, Tile, History -->
+    <div id="right-col">
+      <div id="map-panel">
+        <h3>🗺️ Map</h3>
+        <div id="room-map">(explore to reveal)</div>
+      </div>
+      <div id="inspector-panel">
+        <h3>🔍 Inspector</h3>
+        <div id="inspector-content" class="empty">Click an object to examine it.</div>
+      </div>
+      <div id="tile-panel">
+        <h3>📐 Tile Composer</h3>
+        <form id="tile-form" autocomplete="off">
+          <input type="text" id="tile-domain" placeholder="domain (room name)" required>
+          <input type="text" id="tile-question" placeholder="question (min 10 chars)" required>
+          <textarea id="tile-answer" placeholder="answer (min 20 chars)" required></textarea>
+          <div class="tile-row">
+            <input type="number" id="tile-confidence" placeholder="confidence 0-1" min="0" max="1" step="0.05" value="0.8">
+            <input type="text" id="tile-tags" placeholder="tags (comma-separated)">
+          </div>
+          <button type="submit" class="tile-btn" id="tile-submit-btn">📤 Submit Tile</button>
+        </form>
+      </div>
+
+      <div id="history-panel">
+        <h3>📋 Log</h3>
+        <div id="history-log"></div>
+      </div>
+    </div>
+  </div>
+
+  <button id="regenerate">⟳ RE-GENERATE</button>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ─── State ───
+const KEEPER = 'http://147.224.38.131:4042';
+const PLATO   = 'http://147.224.38.131:8847';
+
+let state = {
+  agent: null,
+  job: 'builder',
+  room: null,
+  connected: false,
+  visited: {}       // { roomName: { exits: [...] } }
+};
+
+// ─── DOM refs ───
+const $ = id => document.getElementById(id);
+const agentName  = $('agent-name');
+const jobSelect  = $('job-select');
+const connectBtn = $('connect-btn');
+const roomName   = $('room-name');
+const roomTags   = $('room-tags');
+const roomDesc   = $('room-desc');
+const exitGrid   = $('exit-grid');
+const objGrid    = $('object-grid');
+const roomTask   = $('room-task');
+const taskSec    = $('task-section');
+const roomMap    = $('room-map');
+const inspector  = $('inspector-content');
+const historyLog = $('history-log');
+const toastEl    = $('toast');
+const statusDot  = $('status-dot');
+const statusText = $('status-text');
+const regenBtn   = $('regenerate');
+
+// Tile form
+const tileForm    = $('tile-form');
+const tileDomain  = $('tile-domain');
+const tileQ       = $('tile-question');
+const tileA       = $('tile-answer');
+const tileConf    = $('tile-confidence');
+const tileTags    = $('tile-tags');
+const tileSubmit  = $('tile-submit-btn');
+
+// ─── Toast ───
+let toastTimer = null;
+function toast(msg, type = 'info') {
+  toastEl.textContent = msg;
+  toastEl.className = `show ${type}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { toastEl.classList.remove('show'); }, 3000);
+}
+
+// ─── History ───
+function log(msg, type = 'system') {
+  const t = new Date().toLocaleTimeString(undefined, { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const div = document.createElement('div');
+  div.className = 'log-entry';
+  div.innerHTML = `<span class="log-time">${t}</span><span class="log-msg ${type}">${msg}</span>`;
+  historyLog.appendChild(div);
+  historyLog.scrollTop = historyLog.scrollHeight;
+}
+
+function clearHistory() {
+  historyLog.innerHTML = '';
+}
+
+// ─── API helpers ───
+async function apiGet(url) {
+  const resp = await fetch(url, { mode: 'cors' });
+  const data = await resp.json();
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
+async function apiPost(url, body) {
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    mode: 'cors'
+  });
+  const data = await resp.json();
+  if (data.error) throw new Error(data.error);
+  if (data.status === 'rejected') throw new Error(data.reason || 'Tile rejected');
+  return data;
+}
+
+// ─── Fleet Status ───
+async function fetchStatus() {
+  try {
+    const data = await apiGet(`${KEEPER}/status`);
+    const status = `${data.rooms} rooms · ${data.agents_connected} agents · ${data.plato_tiles} tiles`;
+    statusText.textContent = status;
+    statusDot.className = 'dot online';
+    log(`Fleet online: ${status}`, 'system');
+  } catch (e) {
+    statusText.textContent = 'offline';
+    statusDot.className = 'dot offline';
+    log(`Fleet unreachable: ${e.message}`, 'error');
+  }
+}
+
+// ─── Connect ───
+async function connect(name, job) {
+  log(`Connecting as "${name}" (${job})...`, 'info');
+  try {
+    const data = await apiGet(`${KEEPER}/connect?agent=${encodeURIComponent(name)}&job=${encodeURIComponent(job)}`);
+    state.agent = name;
+    state.job = job;
+    state.connected = true;
+    state.room = data.room;
+    log(`Connected! Arrived at ${data.room}`, 'success');
+    renderRoom(data);
+    fetchStatus();
+    toast(`Connected as ${name} · ${job}`, 'success');
+  } catch (e) {
+    log(`Connection failed: ${e.message}`, 'error');
+    toast(`Connection failed: ${e.message}`, 'error');
+  }
+}
+
+// ─── Look ───
+async function look() {
+  if (!state.agent) return;
+  log('Looking around...', 'info');
+  try {
+    const data = await apiGet(`${KEEPER}/look?agent=${encodeURIComponent(state.agent)}`);
+    state.room = data.room;
+    renderRoom(data);
+  } catch (e) {
+    if (e.message.includes('not connected')) {
+      log('Session expired. Reconnect.', 'error');
+      state.connected = false;
+      toast('Session expired. Reconnect.', 'error');
+    } else {
+      log(`Look failed: ${e.message}`, 'error');
+    }
+  }
+}
+
+// ─── Move ───
+async function move(exit) {
+  if (!state.agent) return;
+  log(`Moving ${exit}...`, 'info');
+  try {
+    const data = await apiGet(`${KEEPER}/move?agent=${encodeURIComponent(state.agent)}&room=${encodeURIComponent(exit)}`);
+    state.room = data.room;
+    renderRoom(data);
+    toast(`→ ${data.room}`, 'info');
+  } catch (e) {
+    log(`Move failed: ${e.message}`, 'error');
+    toast(`Can't go ${exit}`, 'error');
+  }
+}
+
+// ─── Interact ───
+async function interact(target) {
+  if (!state.agent) return;
+  log(`Examining ${target}...`, 'info');
+  try {
+    const data = await apiGet(`${KEEPER}/interact?agent=${encodeURIComponent(state.agent)}&action=examine&target=${encodeURIComponent(target)}`);
+    inspector.className = '';
+    inspector.innerHTML = `<strong style="color:var(--warning);">${data.target}</strong><br>${data.description}`;
+    log(`Examined ${data.target}: ${data.description.substring(0, 80)}...`, 'success');
+    toast(`🔍 ${data.target}`, 'info');
+  } catch (e) {
+    inspector.className = 'empty';
+    inspector.textContent = `Error: ${e.message}`;
+    log(`Examine failed: ${e.message}`, 'error');
+  }
+}
+
+// ─── Render Room ───
+function renderRoom(data) {
+  roomName.textContent = `🏠 ${data.room}`;
+
+  const stage = data.stage ? data.stage.name : '';
+  const job = data.job || state.job;
+  roomTags.textContent = `${job} · ${stage}${data.boot_camp ? ' · boot: ' + data.boot_camp.join(', ') : ''}`;
+
+  roomDesc.textContent = data.description;
+
+  // Exits
+  if (data.exits && data.exits.length) {
+    exitGrid.innerHTML = data.exits.map(e =>
+      `<button class="exit-btn" data-exit="${e}">${e}</button>`
+    ).join('');
+    exitGrid.querySelectorAll('.exit-btn').forEach(btn => {
+      btn.addEventListener('click', () => move(btn.dataset.exit));
+    });
+  } else {
+    exitGrid.innerHTML = '<span style="color:var(--text-dim);font-size:12px;">None</span>';
+  }
+
+  // Objects
+  if (data.objects && data.objects.length) {
+    objGrid.innerHTML = data.objects.map(o =>
+      `<button class="object-btn" data-obj="${o}">${o}</button>`
+    ).join('');
+    objGrid.querySelectorAll('.object-btn').forEach(btn => {
+      btn.addEventListener('click', () => interact(btn.dataset.obj));
+    });
+  } else {
+    objGrid.innerHTML = '<span style="color:var(--text-dim);font-size:12px;">None</span>';
+  }
+
+  // Task
+  if (data.task) {
+    taskSec.style.display = '';
+    roomTask.textContent = data.task;
+  } else {
+    taskSec.style.display = 'none';
+  }
+
+  // Update map
+  state.visited[data.room] = data.exits || [];
+  renderMap();
+
+  // Fill tile domain
+  tileDomain.value = data.room;
+}
+
+// ─── Map ───
+function renderMap() {
+  const entries = Object.entries(state.visited);
+  if (entries.length === 0) {
+    roomMap.textContent = '(explore to reveal)';
+    return;
+  }
+
+  const lines = [];
+  lines.push(`📌 ${state.room} ← current`);
+  lines.push(`📍 ${entries.length} rooms discovered`);
+
+  // Build connections list
+  for (const [room, exits] of entries) {
+    if (room === state.room) continue;
+    const exitStr = exits.length > 0 ? ` → ${exits.join(', ')}` : '';
+    lines.push(`  • ${room}${exitStr}`);
+  }
+
+  roomMap.textContent = lines.join('\n');
+}
+
+// ─── Submit Tile ───
+async function submitTile(domain, question, answer, confidence, tags) {
+  log(`Submitting tile to "${domain}"...`, 'info');
+  tileSubmit.disabled = true;
+  tileSubmit.textContent = '⏳ Submitting...';
+  try {
+    const body = {
+      domain,
+      question,
+      answer,
+      source: state.agent || 'web-explorer',
+      confidence: parseFloat(confidence) || 0.8,
+      tags: tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : []
+    };
+    const data = await apiPost(`${PLATO}/submit`, body);
+    log(`Tile submitted: "${question.substring(0, 40)}..."`, 'success');
+    toast('✅ Tile submitted!', 'success');
+
+    // Clear form
+    tileQ.value = '';
+    tileA.value = '';
+    tileConf.value = '0.8';
+    tileTags.value = '';
+
+    // Refresh fleet status
+    fetchStatus();
+  } catch (e) {
+    log(`Submit failed: ${e.message}`, 'error');
+    toast(`❌ ${e.message}`, 'error');
+  } finally {
+    tileSubmit.disabled = false;
+    tileSubmit.textContent = '📤 Submit Tile';
+  }
+}
+
+// ─── Regenerate ───
+function regenerate() {
+  const rand = Math.random().toString(36).substring(2, 7);
+  agentName.value = `recruit-${rand}`;
+  state.agent = null;
+  state.connected = false;
+  state.room = null;
+  state.visited = {};
+  inspector.className = 'empty';
+  inspector.textContent = 'Click an object to examine it.';
+  renderMap();
+  clearHistory();
+  roomName.textContent = '—';
+  roomTags.textContent = '';
+  roomDesc.textContent = 'Connecting new agent...';
+  exitGrid.innerHTML = '<span style="color:var(--text-dim);font-size:12px;">—</span>';
+  objGrid.innerHTML = '<span style="color:var(--text-dim);font-size:12px;">—</span>';
+  taskSec.style.display = 'none';
+  tileDomain.value = '';
+
+  log('⟳ Regenerating agent session...', 'system');
+  toast('⟳ Starting fresh', 'info');
+
+  setTimeout(() => {
+    connect(agentName.value, jobSelect.value);
+  }, 300);
+}
+
+// ─── Event Listeners ───
+
+// Connect button
+connectBtn.addEventListener('click', () => {
+  const name = agentName.value.trim();
+  if (!name) { toast('Enter an agent name', 'error'); return; }
+  connect(name, jobSelect.value);
+});
+
+// Enter key on agent name
+agentName.addEventListener('keydown', e => {
+  if (e.key === 'Enter') connectBtn.click();
+});
+
+// Tile form
+tileForm.addEventListener('submit', e => {
+  e.preventDefault();
+  const d = tileDomain.value.trim();
+  const q = tileQ.value.trim();
+  const a = tileA.value.trim();
+  if (!d) { toast('Domain required', 'error'); return; }
+  if (q.length < 10) { toast('Question too short (min 10 chars)', 'error'); return; }
+  if (a.length < 20) { toast('Answer too short (min 20 chars)', 'error'); return; }
+  submitTile(d, q, a, tileConf.value, tileTags.value);
+});
+
+// Regenerate
+regenBtn.addEventListener('click', regenerate);
+
+// ─── Init ───
+fetchStatus();
+log('🦀 Crab Trap MUD loaded. Connect an agent to explore the fleet.', 'system');
+log('Rooms: 36+ · Tiles: 1050+ · 6 job archetypes', 'system');
+log('Tip: Click exits to move, click objects to examine, submit tiles to contribute.', 'system');
+</script>
+</body>
+</html>
