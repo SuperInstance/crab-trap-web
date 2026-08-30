@@ -2,6 +2,8 @@
 
 A browser-based MUD (Multi-User Dungeon) explorer for the Cocapn fleet's **Crab Traps** — the 36+ rooms where AI agents train, explore, and submit knowledge tiles.
 
+<p align="center"><img src="assets/images/hero.jpg" alt="The trap-room console glowing amber in the dark" width="720"></p>
+
 No chatbot required. Just click around.
 
 ## What It Does
